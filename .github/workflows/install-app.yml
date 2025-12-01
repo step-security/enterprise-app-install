@@ -20,7 +20,11 @@ on:
 env:
   # Configure these values for your enterprise
   ENTERPRISE_SLUG: ${{ vars.ENTERPRISE_SLUG }}
-  APP_CLIENT_ID: ${{ vars.APP_CLIENT_ID }}
+  # Installer App - enterprise-level app with "Enterprise organization installations" permission
+  INSTALLER_APP_CLIENT_ID: ${{ vars.INSTALLER_APP_CLIENT_ID }}
+  # Target App - the app to be installed to organizations
+  TARGET_APP_CLIENT_ID: ${{ vars.TARGET_APP_CLIENT_ID }}
+  TARGET_APP_ID: ${{ vars.TARGET_APP_ID }}
 
 jobs:
   install-app:
@@ -32,9 +36,9 @@ jobs:
       - name: Generate JWT
         id: generate-jwt
         env:
-          APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
+          INSTALLER_APP_PRIVATE_KEY: ${{ secrets.INSTALLER_APP_PRIVATE_KEY }}
         run: |
-          # Generate JWT for GitHub App authentication
+          # Generate JWT for GitHub App authentication (using Installer App credentials)
           # Based on: https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-json-web-token-jwt-for-a-github-app
 
           NOW=$(date +%s)
@@ -47,41 +51,16 @@ jobs:
           # Create JWT header
           HEADER=$(echo -n '{"typ":"JWT","alg":"RS256"}' | b64enc)
 
-          # Create JWT payload (iss is the Client ID per GitHub docs)
-          PAYLOAD=$(echo -n "{\"iat\":${IAT},\"exp\":${EXP},\"iss\":\"${APP_CLIENT_ID}\"}" | b64enc)
+          # Create JWT payload (iss is the Installer App's Client ID)
+          PAYLOAD=$(echo -n "{\"iat\":${IAT},\"exp\":${EXP},\"iss\":\"${INSTALLER_APP_CLIENT_ID}\"}" | b64enc)
 
           # Sign the JWT
           HEADER_PAYLOAD="${HEADER}.${PAYLOAD}"
-          SIGNATURE=$(openssl dgst -sha256 -sign <(echo -n "${APP_PRIVATE_KEY}") <(echo -n "${HEADER_PAYLOAD}") | b64enc)
+          SIGNATURE=$(openssl dgst -sha256 -sign <(echo -n "${INSTALLER_APP_PRIVATE_KEY}") <(echo -n "${HEADER_PAYLOAD}") | b64enc)
 
           JWT="${HEADER_PAYLOAD}.${SIGNATURE}"
           echo "jwt=${JWT}" >> "$GITHUB_OUTPUT"
           echo "::add-mask::${JWT}"
-
-      - name: Get App Info
-        id: get-app-info
-        env:
-          JWT: ${{ steps.generate-jwt.outputs.jwt }}
-        run: |
-          # Get the app's numeric ID for later use
-          RESPONSE=$(curl -s -w "\n%{http_code}" \
-            -H "Authorization: Bearer ${JWT}" \
-            -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            "https://api.github.com/app")
-
-          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
-          BODY=$(echo "$RESPONSE" | sed '$d')
-
-          if [ "$HTTP_CODE" != "200" ]; then
-            echo "::error::Failed to get app info. HTTP $HTTP_CODE: $BODY"
-            exit 1
-          fi
-
-          APP_ID=$(echo "$BODY" | jq -r '.id')
-          APP_SLUG=$(echo "$BODY" | jq -r '.slug')
-          echo "app_id=${APP_ID}" >> "$GITHUB_OUTPUT"
-          echo "App: ${APP_SLUG} (ID: ${APP_ID})"
 
       - name: Get Enterprise Installation ID
         id: get-installation
@@ -144,7 +123,6 @@ jobs:
       - name: Install App to Organizations
         env:
           ACCESS_TOKEN: ${{ steps.get-token.outputs.token }}
-          APP_ID: ${{ steps.get-app-info.outputs.app_id }}
           DRY_RUN: ${{ inputs.dry_run || 'false' }}
         run: |
           # Read organizations from file (skip comments and empty lines)
@@ -178,8 +156,8 @@ jobs:
             CHECK_HTTP_CODE=$(echo "$CHECK_RESPONSE" | tail -n1)
             CHECK_BODY=$(echo "$CHECK_RESPONSE" | sed '$d')
 
-            # Check if our app is already installed (compare with numeric APP_ID)
-            APP_INSTALLED=$(echo "$CHECK_BODY" | jq -r ".installations[]? | select(.app_id == ${APP_ID}) | .id" 2>/dev/null || echo "")
+            # Check if target app is already installed (compare with numeric TARGET_APP_ID)
+            APP_INSTALLED=$(echo "$CHECK_BODY" | jq -r ".installations[]? | select(.app_id == ${TARGET_APP_ID}) | .id" 2>/dev/null || echo "")
 
             if [ -n "$APP_INSTALLED" ] && [ "$APP_INSTALLED" != "null" ]; then
               echo "App already installed in $ORG (installation ID: $APP_INSTALLED)"
@@ -192,13 +170,13 @@ jobs:
               continue
             fi
 
-            # Install the app to the organization
+            # Install the target app to the organization
             INSTALL_RESPONSE=$(curl -s -w "\n%{http_code}" \
               -X POST \
               -H "Authorization: Bearer ${ACCESS_TOKEN}" \
               -H "Accept: application/vnd.github+json" \
               -H "X-GitHub-Api-Version: 2022-11-28" \
-              -d "{\"client_id\":\"${APP_CLIENT_ID}\",\"repository_selection\":\"all\"}" \
+              -d "{\"client_id\":\"${TARGET_APP_CLIENT_ID}\",\"repository_selection\":\"all\"}" \
               "https://api.github.com/enterprises/${ENTERPRISE_SLUG}/apps/organizations/${ORG}/installations")
 
             INSTALL_HTTP_CODE=$(echo "$INSTALL_RESPONSE" | tail -n1)
