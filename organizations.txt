@@ -1,0 +1,6 @@
+# List of organizations to install the GitHub App
+# One organization per line
+# Lines starting with # are comments and will be ignored
+# Example:
+# my-org-1
+# my-org-2
