@@ -20,8 +20,7 @@ on:
 env:
   # Configure these values for your enterprise
   ENTERPRISE_SLUG: ${{ vars.ENTERPRISE_SLUG }}
-  APP_ID: ${{ vars.APP_ID }}              # Numeric App ID (for JWT)
-  APP_CLIENT_ID: ${{ vars.APP_CLIENT_ID }} # Alphanumeric Client ID (for API calls)
+  APP_CLIENT_ID: ${{ vars.APP_CLIENT_ID }}
 
 jobs:
   install-app:
@@ -42,18 +41,47 @@ jobs:
           IAT=$((NOW - 60))  # Issued 60 seconds ago to allow for clock drift
           EXP=$((NOW + 600)) # Expires in 10 minutes
 
-          # Create JWT header
-          HEADER=$(echo -n '{"alg":"RS256","typ":"JWT"}' | base64 | tr -d '=' | tr '/+' '_-' | tr -d '\n')
+          # Helper function for base64url encoding
+          b64enc() { openssl base64 | tr -d '=' | tr '/+' '_-' | tr -d '\n'; }
 
-          # Create JWT payload (iss must be the numeric App ID)
-          PAYLOAD=$(echo -n "{\"iat\":${IAT},\"exp\":${EXP},\"iss\":\"${APP_ID}\"}" | base64 | tr -d '=' | tr '/+' '_-' | tr -d '\n')
+          # Create JWT header
+          HEADER=$(echo -n '{"typ":"JWT","alg":"RS256"}' | b64enc)
+
+          # Create JWT payload (iss is the Client ID per GitHub docs)
+          PAYLOAD=$(echo -n "{\"iat\":${IAT},\"exp\":${EXP},\"iss\":\"${APP_CLIENT_ID}\"}" | b64enc)
 
           # Sign the JWT
-          SIGNATURE=$(echo -n "${HEADER}.${PAYLOAD}" | openssl dgst -sha256 -sign <(echo "$APP_PRIVATE_KEY") | base64 | tr -d '=' | tr '/+' '_-' | tr -d '\n')
+          HEADER_PAYLOAD="${HEADER}.${PAYLOAD}"
+          SIGNATURE=$(openssl dgst -sha256 -sign <(echo -n "${APP_PRIVATE_KEY}") <(echo -n "${HEADER_PAYLOAD}") | b64enc)
 
-          JWT="${HEADER}.${PAYLOAD}.${SIGNATURE}"
+          JWT="${HEADER_PAYLOAD}.${SIGNATURE}"
           echo "jwt=${JWT}" >> "$GITHUB_OUTPUT"
           echo "::add-mask::${JWT}"
+
+      - name: Get App Info
+        id: get-app-info
+        env:
+          JWT: ${{ steps.generate-jwt.outputs.jwt }}
+        run: |
+          # Get the app's numeric ID for later use
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -H "Authorization: Bearer ${JWT}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/app")
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::error::Failed to get app info. HTTP $HTTP_CODE: $BODY"
+            exit 1
+          fi
+
+          APP_ID=$(echo "$BODY" | jq -r '.id')
+          APP_SLUG=$(echo "$BODY" | jq -r '.slug')
+          echo "app_id=${APP_ID}" >> "$GITHUB_OUTPUT"
+          echo "App: ${APP_SLUG} (ID: ${APP_ID})"
 
       - name: Get Enterprise Installation ID
         id: get-installation
@@ -116,6 +144,7 @@ jobs:
       - name: Install App to Organizations
         env:
           ACCESS_TOKEN: ${{ steps.get-token.outputs.token }}
+          APP_ID: ${{ steps.get-app-info.outputs.app_id }}
           DRY_RUN: ${{ inputs.dry_run || 'false' }}
         run: |
           # Read organizations from file (skip comments and empty lines)
