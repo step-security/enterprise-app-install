@@ -24,7 +24,6 @@ env:
   INSTALLER_APP_CLIENT_ID: ${{ vars.INSTALLER_APP_CLIENT_ID }}
   # Target App - the app to be installed to organizations
   TARGET_APP_CLIENT_ID: ${{ vars.TARGET_APP_CLIENT_ID }}
-  TARGET_APP_ID: ${{ vars.TARGET_APP_ID }}
 
 jobs:
   install-app:
@@ -162,13 +161,8 @@ jobs:
             CHECK_HTTP_CODE=$(echo "$CHECK_RESPONSE" | tail -n1)
             CHECK_BODY=$(echo "$CHECK_RESPONSE" | sed '$d')
 
-            # Debug: print installations response
-            echo "Check API response (HTTP ${CHECK_HTTP_CODE}):"
-            echo "$CHECK_BODY" | jq '.' 2>/dev/null || echo "$CHECK_BODY"
-            echo "Looking for app_id: ${TARGET_APP_ID}"
-
-            # Check if target app is already installed (compare with numeric TARGET_APP_ID)
-            APP_INSTALLED=$(echo "$CHECK_BODY" | jq -r ".installations[]? | select(.app_id == ${TARGET_APP_ID}) | .id" 2>/dev/null || echo "")
+            # Check if target app is already installed (compare with client_id)
+            APP_INSTALLED=$(echo "$CHECK_BODY" | jq -r ".[]? | select(.client_id == \"${TARGET_APP_CLIENT_ID}\") | .id" 2>/dev/null || echo "")
 
             if [ -n "$APP_INSTALLED" ] && [ "$APP_INSTALLED" != "null" ]; then
               echo "App already installed in $ORG (installation ID: $APP_INSTALLED)"
