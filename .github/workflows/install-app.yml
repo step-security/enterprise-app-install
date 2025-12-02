@@ -140,7 +140,7 @@ jobs:
           # Define target apps to install
           declare -A APPS
           APPS["StepSecurity Actions Security App"]="Iv1.68c130650513586e"
-          APPS["StepSecurity App (Advanced App)"]="Iv1.42083107a7649cb0"
+          APPS["StepSecurity App (Advanced App)"]="Iv23liqoQTzIkrAy4gqs"
 
           # Read organizations from file (skip comments and empty lines)
           ORGS=$(grep -v '^#' organizations.txt | grep -v '^[[:space:]]*$' || true)
