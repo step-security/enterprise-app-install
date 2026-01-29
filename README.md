@@ -102,6 +102,56 @@ The workflow reports:
 - **Already installed**: Apps that were already present
 - **Failed**: Apps that failed to install (check logs for details)
 
+### Example Execution
+
+When the workflow runs, you'll see output like this:
+
+```
+=== Processing organizations ===
+Apps to install (in order):
+  1. StepSecurity Actions Security App
+  2. StepSecurity App (Advanced App)
+
+
+==========================================
+Processing organization: step-integration-tests
+==========================================
+
+--- [1/2] StepSecurity Actions Security App (Iv1.ad96d1f00234487b) ---
+Already installed (installation ID: 72605456)
+Waiting 5 seconds before next app...
+
+--- [2/2] StepSecurity App (Advanced App) (Iv23liR5Z8C22IM5THOA) ---
+Already installed (installation ID: 72605887)
+
+==========================================
+Processing organization: step-dev-org-1
+==========================================
+
+--- [1/2] StepSecurity Actions Security App (Iv1.ad96d1f00234487b) ---
+Already installed (installation ID: 97537007)
+Waiting 5 seconds before next app...
+
+--- [2/2] StepSecurity App (Advanced App) (Iv23liR5Z8C22IM5THOA) ---
+Already installed (installation ID: 97537005)
+
+==========================================
+Processing organization: step-dev-org-2
+==========================================
+
+--- [1/2] StepSecurity Actions Security App (Iv1.ad96d1f00234487b) ---
+Successfully installed
+Waiting 5 seconds before next app...
+
+--- [2/2] StepSecurity App (Advanced App) (Iv23liR5Z8C22IM5THOA) ---
+Successfully installed
+
+=== Summary ===
+Newly installed: 2
+Already installed: 4
+Failed: 0
+```
+
 ## Troubleshooting
 
 ### "Integration must generate a public key"
