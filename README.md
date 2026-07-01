@@ -56,7 +56,7 @@ Go to this repository's **Settings > Secrets and variables > Actions**
 
 | Name | Value |
 |------|-------|
-| `ENTERPRISE_SLUG` | Your enterprise slug (from URL: `github.com/enterprises/YOUR-SLUG`) |
+| `ENTERPRISE_SLUG` | Just the slug, not the full URL. From github.com/enterprises/YOUR-ENTERPRISE-SLUG, use only `YOUR-ENTERPRISE-SLUG`  |
 | `INSTALLER_APP_CLIENT_ID` | The Client ID from step 4 |
 
 ## Usage
@@ -164,6 +164,9 @@ The installer app is not installed on your enterprise. Go to the app's settings 
 
 ### Apps show as "Successfully installed" but were already installed
 This can happen if the install API is idempotent. The workflow now checks existing installations before attempting to install.
+
+### "Integration not found" (HTTP 404)
+The JWT could not be validated, or `ENTERPRISE_SLUG` is set to the full URL instead of the bare slug. Set it to just the slug (e.g. `YOUR-ENTERPRISE-SLUG`), not `https://github.com/enterprises/YOUR-ENTERPRISE-SLUG`.
 
 ## References
 
