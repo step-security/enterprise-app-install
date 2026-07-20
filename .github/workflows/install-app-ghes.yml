@@ -1,0 +1,43 @@
+name: Install GitHub App to Organizations
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run - only check installation status without installing'
+        required: false
+        default: false
+        type: boolean
+
+permissions: {}
+
+jobs:
+  install-app:
+    # IMPORTANT: must run inside the GHES network to reach the GHES API.
+    # Use a self-hosted or GHES-hosted runner on the instance.
+    permissions:
+      contents: read # for actions/checkout to fetch code
+    runs-on: self-hosted
+    env:
+      # Installer app (registered on your GHES instance,
+      # "Enterprise organization installations: Read and write")
+      INSTALLER_APP_PRIVATE_KEY: ${{ secrets.INSTALLER_APP_PRIVATE_KEY }}
+      INSTALLER_APP_CLIENT_ID: ${{ vars.INSTALLER_APP_CLIENT_ID }}
+      ENTERPRISE_SLUG: ${{ vars.ENTERPRISE_SLUG }}
+      
+      # Target StepSecurity apps, as registered on THIS GHES instance
+      REGULAR_APP_CLIENT_ID: ${{ vars.REGULAR_APP_CLIENT_ID }}
+      ADVANCED_APP_CLIENT_ID: ${{ vars.ADVANCED_APP_CLIENT_ID }}
+      DRY_RUN: ${{ inputs.dry_run }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Ensure dependencies
+        run: |
+          command -v jq >/dev/null 2>&1 || { echo "jq is required on the runner"; exit 1; }
+          command -v openssl >/dev/null 2>&1 || { echo "openssl is required on the runner"; exit 1; }
+          command -v curl >/dev/null 2>&1 || { echo "curl is required on the runner"; exit 1; }
+
+      - name: Install StepSecurity apps to organizations
+        run: bash install-app-local.sh

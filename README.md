@@ -59,6 +59,78 @@ Go to this repository's **Settings > Secrets and variables > Actions**
 | `ENTERPRISE_SLUG` | Your enterprise slug (from URL: `github.com/enterprises/YOUR-SLUG`) |
 | `INSTALLER_APP_CLIENT_ID` | The Client ID from step 4 |
 
+## GHES
+
+> [!NOTE]
+> Requires GHES **3.19 or later**. See the
+> [GHES 3.19 release notes](https://docs.github.com/en/enterprise-server@3.19/admin/release-notes#apis).
+
+### Prerequisites
+
+- The StepSecurity apps must already be registered on your GHES instance and
+  installed on **at least in one org** before running this tool, that's how the
+  apps get their client IDs (`REGULAR_APP_CLIENT_ID` / `ADVANCED_APP_CLIENT_ID`).
+  Set this up first via the
+  [GHES admin console guide](https://docs.stepsecurity.io/administration/admin-console/resources/github-enterprise-servers),
+  then use this tool to roll the install out to the rest of your organizations.
+- A **self-hosted (or GHES-hosted) runner inside your network** so the workflow
+  can reach the GHES API.
+
+### Setup
+
+#### 1. Create the Installer App
+
+- **GitHub App name**: `YOUR-ENTERPRISE-installer` (or similar)
+- **Homepage URL**: Your enterprise URL or this repository URL
+- **Webhook**: Uncheck "Active" (not needed)
+- Set permissions:
+  - Under **Enterprise permissions**, set **Enterprise organization installations** to **Read and write**
+- Under **Where can this GitHub App be installed?**, select **Only on this account**
+
+#### 2. Generate and Save Private Key
+
+1. On the app's settings page, scroll to **Private keys**
+2. Click **Generate a private key**
+3. Save the downloaded `.pem` file securely
+
+#### 3. Install the Installer App on Your Enterprise
+
+1. On the app's settings page, click **Install App** in the sidebar
+2. Select your enterprise account
+3. Click **Install**
+
+#### 4. Get the Client IDs
+
+- **Installer app**: on the app's settings page, copy the **Client ID** (starts with `Iv`)
+- **Target apps**: get the Client IDs of the StepSecurity apps you already
+  registered/installed on this GHES instance, see the
+  [GHES admin console guide](https://docs.stepsecurity.io/administration/admin-console/resources/github-enterprise-servers)
+
+#### 5. Commit This Repo to Your GHES Instance
+
+1. Push this repo to a repository hosted on your **GHES** instance
+2. Ensure a **self-hosted runner** is available (adjust `runs-on` in
+   [install-app-ghes.yml](.github/workflows/install-app-ghes.yml) if you use a specific label)
+
+#### 6. Configure Repository Secrets and Variables
+
+Go to this repository's **Settings > Secrets and variables > Actions** (on the GHES repo)
+
+##### Secrets
+
+| Name | Value |
+|------|-------|
+| `INSTALLER_APP_PRIVATE_KEY` | Contents of the `.pem` file (include the BEGIN/END lines) |
+
+##### Variables
+
+| Name | Value |
+|------|-------|
+| `ENTERPRISE_SLUG` | Your enterprise slug |
+| `INSTALLER_APP_CLIENT_ID` | The installer app Client ID |
+| `REGULAR_APP_CLIENT_ID` | Regular app Client ID (as registered on this instance) |
+| `ADVANCED_APP_CLIENT_ID` | Advanced app Client ID (as registered on this instance) |
+
 ## Usage
 
 ### Add Organizations
