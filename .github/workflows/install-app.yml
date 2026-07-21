@@ -19,6 +19,11 @@ env:
   ENTERPRISE_SLUG: ${{ vars.ENTERPRISE_SLUG }}
   # Installer App - enterprise-level app with "Enterprise organization installations" permission
   INSTALLER_APP_CLIENT_ID: ${{ vars.INSTALLER_APP_CLIENT_ID }}
+  # Optional client ID overrides for dedicated environments, where the apps have
+  # different client IDs than the GitHub Cloud defaults. Leave unset to use the
+  # GitHub Cloud defaults below.
+  REGULAR_APP_CLIENT_ID: ${{ vars.REGULAR_APP_CLIENT_ID }}
+  ADVANCED_APP_CLIENT_ID: ${{ vars.ADVANCED_APP_CLIENT_ID }}
 
 permissions: {}
 
@@ -134,14 +139,20 @@ jobs:
           ACCESS_TOKEN: ${{ steps.get-token.outputs.token }}
           DRY_RUN: ${{ inputs.dry_run || 'false' }}
         run: |
+          # Resolve app client IDs. Dedicated environments override these via the
+          # REGULAR_APP_CLIENT_ID / ADVANCED_APP_CLIENT_ID variables; otherwise fall
+          # back to the GitHub Cloud defaults.
+          REGULAR_APP_CLIENT_ID="${REGULAR_APP_CLIENT_ID:-Iv1.ad96d1f00234487b}"
+          ADVANCED_APP_CLIENT_ID="${ADVANCED_APP_CLIENT_ID:-Iv23liR5Z8C22IM5THOA}"
+
           # Define target apps to install (in order)
           APP_NAMES=(
             "StepSecurity Actions Security App"
             "StepSecurity App (Advanced App)"
           )
           APP_CLIENT_IDS=(
-            "Iv1.ad96d1f00234487b"
-            "Iv23liR5Z8C22IM5THOA"
+            "${REGULAR_APP_CLIENT_ID}"
+            "${ADVANCED_APP_CLIENT_ID}"
           )
 
           # Read organizations from file (skip comments and empty lines)
