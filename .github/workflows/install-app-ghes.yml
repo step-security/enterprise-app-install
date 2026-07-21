@@ -1,4 +1,4 @@
-name: Install GitHub App to Organizations
+name: Install GitHub App to Organizations (GHES)
 
 on:
   workflow_dispatch:
