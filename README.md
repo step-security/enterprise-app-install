@@ -167,12 +167,33 @@ This workflow installs the following apps (hardcoded):
 
 To modify the target apps, edit the `APPS` array in `.github/workflows/install-app.yml`.
 
+### Accepting Updated App Permissions
+
+When StepSecurity releases a new feature that needs additional app permissions, GitHub
+puts every existing installation into a pending "review requested permissions" state
+that an org admin would normally have to accept by hand, org by org.
+
+This workflow handles that automatically. For each app that is already installed, it
+compares the permissions the installation was granted with the permissions the app
+currently requests (`GET /apps/{app_slug}`). If the app requests a permission the
+installation does not have yet, the workflow re-calls the enterprise install endpoint,
+which [accepts the pending update request](https://docs.github.com/en/enterprise-cloud@latest/rest/enterprise-admin/organization-installations)
+("If the app is already installed and has a pending update request, it will be updated
+to the latest version"). The existing repository selection is preserved.
+
+Notes:
+- **Dry run** reports pending permission updates without accepting them.
+- Installations with **selected** repository access and more than 50 selected
+  repositories are skipped with a warning (the install API accepts at most 50
+  repository names) — accept those manually in the org settings.
+
 ## Workflow Output
 
 The workflow reports:
 - **Newly installed**: Apps that were installed during this run
-- **Already installed**: Apps that were already present
-- **Failed**: Apps that failed to install (check logs for details)
+- **Already installed**: Apps that were already present with up-to-date permissions
+- **Permission updates accepted**: Installations whose pending permission update requests were accepted
+- **Failed**: Apps that failed to install or update (check logs for details)
 
 ### Example Execution
 
@@ -190,22 +211,22 @@ Processing organization: step-integration-tests
 ==========================================
 
 --- [1/2] StepSecurity Actions Security App (Iv1.ad96d1f00234487b) ---
-Already installed (installation ID: 72605456)
+Already installed, permissions up to date (installation ID: 72605456)
 Waiting 5 seconds before next app...
 
 --- [2/2] StepSecurity App (Advanced App) (Iv23liR5Z8C22IM5THOA) ---
-Already installed (installation ID: 72605887)
+Already installed, permissions up to date (installation ID: 72605887)
 
 ==========================================
 Processing organization: step-dev-org-1
 ==========================================
 
 --- [1/2] StepSecurity Actions Security App (Iv1.ad96d1f00234487b) ---
-Already installed (installation ID: 97537007)
+Already installed, permissions up to date (installation ID: 97537007)
 Waiting 5 seconds before next app...
 
 --- [2/2] StepSecurity App (Advanced App) (Iv23liR5Z8C22IM5THOA) ---
-Already installed (installation ID: 97537005)
+Already installed, permissions up to date (installation ID: 97537005)
 
 ==========================================
 Processing organization: step-dev-org-2
@@ -221,6 +242,7 @@ Successfully installed
 === Summary ===
 Newly installed: 2
 Already installed: 4
+Permission updates accepted: 0
 Failed: 0
 ```
 
