@@ -179,13 +179,10 @@ currently requests (`GET /apps/{app_slug}`). If the app requests a permission th
 installation does not have yet, the workflow re-calls the enterprise install endpoint,
 which [accepts the pending update request](https://docs.github.com/en/enterprise-cloud@latest/rest/enterprise-admin/organization-installations)
 ("If the app is already installed and has a pending update request, it will be updated
-to the latest version"). The existing repository selection is preserved.
+to the latest version"). Apps installed by this workflow always use all-repository
+access, so the update is accepted with the same selection.
 
-Notes:
-- **Dry run** reports pending permission updates without accepting them.
-- Installations with **selected** repository access and more than 50 selected
-  repositories are skipped with a warning (the install API accepts at most 50
-  repository names) — accept those manually in the org settings.
+**Dry run** reports pending permission updates without accepting them.
 
 ## Workflow Output
 
