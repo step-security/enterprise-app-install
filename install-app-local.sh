@@ -126,6 +126,7 @@ echo ""
 
 INSTALLED=0
 ALREADY_INSTALLED=0
+UPDATED=0
 FAILED=0
 
 while IFS= read -r ORG; do
@@ -156,11 +157,83 @@ while IFS= read -r ORG; do
     echo ""
     echo "--- [$((i + 1))/${#APP_NAMES[@]}] $APP_NAME ($APP_CLIENT_ID) ---"
 
-    APP_INSTALLED=$(echo "$CHECK_BODY" | jq -r ".[]? | select(.client_id == \"${APP_CLIENT_ID}\") | .id" 2>/dev/null || echo "")
+    INSTALLATION_JSON=$(echo "$CHECK_BODY" | jq -c ".[]? | select(.client_id == \"${APP_CLIENT_ID}\")" 2>/dev/null || echo "")
+    APP_INSTALLED=$(echo "$INSTALLATION_JSON" | jq -r '.id // empty' 2>/dev/null || echo "")
 
     if [ -n "$APP_INSTALLED" ] && [ "$APP_INSTALLED" != "null" ]; then
-      echo "Already installed (installation ID: $APP_INSTALLED)"
-      ALREADY_INSTALLED=$((ALREADY_INSTALLED + 1))
+      # Installed - check for a pending permission update request.
+      # The installation shows the permissions that were GRANTED;
+      # GET /apps/{app_slug} shows what the app currently REQUESTS.
+      # Any requested permission that is missing or lower on the installation
+      # means the app's updated permissions have not been accepted yet.
+      APP_SLUG=$(echo "$INSTALLATION_JSON" | jq -r '.app_slug // empty')
+      GRANTED_PERMS=$(echo "$INSTALLATION_JSON" | jq -c '.permissions // {}')
+
+      MISSING_PERMS=""
+      PERM_CHECK_OK=false
+      if [ -n "$APP_SLUG" ]; then
+        APP_RESPONSE=$(curl -s -w "\n%{http_code}" \
+          -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+          -H "Accept: application/vnd.github+json" \
+          -H "X-GitHub-Api-Version: 2022-11-28" \
+          "${API_BASE}/apps/${APP_SLUG}")
+
+        APP_HTTP_CODE=$(echo "$APP_RESPONSE" | tail -n1)
+        APP_BODY=$(echo "$APP_RESPONSE" | sed '$d')
+
+        if [ "$APP_HTTP_CODE" == "200" ]; then
+          PERM_CHECK_OK=true
+          REQUESTED_PERMS=$(echo "$APP_BODY" | jq -c '.permissions // {}')
+          MISSING_PERMS=$(jq -n -r \
+            --argjson requested "$REQUESTED_PERMS" \
+            --argjson granted "$GRANTED_PERMS" '
+            def rank: {"read": 1, "write": 2, "admin": 3}[.] // 0;
+            [$requested | to_entries[]
+              | select((.value | rank) > (($granted[.key] // "none") | rank))
+              | "\(.key):\(.value)"]
+            | join(", ")')
+        else
+          echo "WARNING: Could not fetch app manifest for ${APP_SLUG} (HTTP $APP_HTTP_CODE)"
+        fi
+      else
+        echo "WARNING: Installation for ${APP_CLIENT_ID} has no app_slug"
+      fi
+
+      if [ "$PERM_CHECK_OK" != "true" ]; then
+        echo "Already installed (installation ID: $APP_INSTALLED), but could not verify permissions are up to date"
+        FAILED=$((FAILED + 1))
+      elif [ -z "$MISSING_PERMS" ]; then
+        echo "Already installed, permissions up to date (installation ID: $APP_INSTALLED)"
+        ALREADY_INSTALLED=$((ALREADY_INSTALLED + 1))
+      elif [ "$DRY_RUN" == "true" ]; then
+        echo "[DRY RUN] Pending permission update (not yet granted: ${MISSING_PERMS}) - would accept"
+      else
+        echo "Pending permission update detected (not yet granted: ${MISSING_PERMS})"
+
+        # Re-POSTing the install endpoint accepts a pending update request
+        # ("If the app is already installed and has a pending update request,
+        # it will be updated to the latest version"). Apps installed by this
+        # tool always use all-repository access, so re-POST with the same
+        # selection.
+        UPDATE_RESPONSE=$(curl -s -w "\n%{http_code}" \
+          -X POST \
+          -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+          -H "Accept: application/vnd.github+json" \
+          -H "X-GitHub-Api-Version: 2022-11-28" \
+          -d "{\"client_id\":\"${APP_CLIENT_ID}\",\"repository_selection\":\"all\"}" \
+          "${API_BASE}/enterprises/${ENTERPRISE_SLUG}/apps/organizations/${ORG}/installations")
+
+        UPDATE_HTTP_CODE=$(echo "$UPDATE_RESPONSE" | tail -n1)
+        UPDATE_BODY=$(echo "$UPDATE_RESPONSE" | sed '$d')
+
+        if [ "$UPDATE_HTTP_CODE" == "201" ] || [ "$UPDATE_HTTP_CODE" == "200" ]; then
+          echo "Accepted updated permissions"
+          UPDATED=$((UPDATED + 1))
+        else
+          echo "WARNING: Failed to accept updated permissions. HTTP $UPDATE_HTTP_CODE: $UPDATE_BODY"
+          FAILED=$((FAILED + 1))
+        fi
+      fi
     else
       if [ "$DRY_RUN" == "true" ]; then
         echo "[DRY RUN] Would install"
@@ -200,4 +273,5 @@ echo ""
 echo "=== Summary ==="
 echo "Newly installed: $INSTALLED"
 echo "Already installed: $ALREADY_INSTALLED"
+echo "Permission updates accepted: $UPDATED"
 echo "Failed: $FAILED"
