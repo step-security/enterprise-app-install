@@ -190,7 +190,7 @@ The workflow reports:
 - **Newly installed**: Apps that were installed during this run
 - **Already installed**: Apps that were already present with up-to-date permissions
 - **Permission updates accepted**: Installations whose pending permission update requests were accepted
-- **Failed**: Apps that failed to install or update (check logs for details)
+- **Failed**: Apps that failed to install or update, or whose permissions could not be verified (check logs for details)
 
 ### Example Execution
 

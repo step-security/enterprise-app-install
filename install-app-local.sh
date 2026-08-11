@@ -170,6 +170,7 @@ while IFS= read -r ORG; do
       GRANTED_PERMS=$(echo "$INSTALLATION_JSON" | jq -c '.permissions // {}')
 
       MISSING_PERMS=""
+      PERM_CHECK_OK=false
       if [ -n "$APP_SLUG" ]; then
         APP_RESPONSE=$(curl -s -w "\n%{http_code}" \
           -H "Authorization: Bearer ${ACCESS_TOKEN}" \
@@ -181,6 +182,7 @@ while IFS= read -r ORG; do
         APP_BODY=$(echo "$APP_RESPONSE" | sed '$d')
 
         if [ "$APP_HTTP_CODE" == "200" ]; then
+          PERM_CHECK_OK=true
           REQUESTED_PERMS=$(echo "$APP_BODY" | jq -c '.permissions // {}')
           MISSING_PERMS=$(jq -n -r \
             --argjson requested "$REQUESTED_PERMS" \
@@ -191,11 +193,16 @@ while IFS= read -r ORG; do
               | "\(.key):\(.value)"]
             | join(", ")')
         else
-          echo "WARNING: Could not fetch app manifest for ${APP_SLUG} (HTTP $APP_HTTP_CODE) - skipping permission update check"
+          echo "WARNING: Could not fetch app manifest for ${APP_SLUG} (HTTP $APP_HTTP_CODE)"
         fi
+      else
+        echo "WARNING: Installation for ${APP_CLIENT_ID} has no app_slug"
       fi
 
-      if [ -z "$MISSING_PERMS" ]; then
+      if [ "$PERM_CHECK_OK" != "true" ]; then
+        echo "Already installed (installation ID: $APP_INSTALLED), but could not verify permissions are up to date"
+        FAILED=$((FAILED + 1))
+      elif [ -z "$MISSING_PERMS" ]; then
         echo "Already installed, permissions up to date (installation ID: $APP_INSTALLED)"
         ALREADY_INSTALLED=$((ALREADY_INSTALLED + 1))
       elif [ "$DRY_RUN" == "true" ]; then
