@@ -184,11 +184,20 @@ while IFS= read -r ORG; do
         if [ "$APP_HTTP_CODE" == "200" ]; then
           PERM_CHECK_OK=true
           REQUESTED_PERMS=$(echo "$APP_BODY" | jq -c '.permissions // {}')
+          # Account-level (user) permissions such as "emails" are granted by
+          # individual users during OAuth, never by org installations, so they
+          # are excluded from the comparison.
           MISSING_PERMS=$(jq -n -r \
             --argjson requested "$REQUESTED_PERMS" \
             --argjson granted "$GRANTED_PERMS" '
             def rank: {"read": 1, "write": 2, "admin": 3}[.] // 0;
+            def account_perm: IN("emails", "email_addresses", "followers",
+              "git_ssh_keys", "git_signing_ssh_public_keys", "gpg_keys",
+              "gists", "keys", "interaction_limits", "plan", "profile",
+              "starring", "watching", "blocking", "codespaces_user_secrets",
+              "copilot_messages", "knowledge_bases");
             [$requested | to_entries[]
+              | select(.key | account_perm | not)
               | select((.value | rank) > (($granted[.key] // "none") | rank))
               | "\(.key):\(.value)"]
             | join(", ")')
