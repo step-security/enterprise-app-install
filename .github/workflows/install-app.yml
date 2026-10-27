@@ -29,6 +29,8 @@ permissions: {}
 
 jobs:
   install-app:
+    # github.com only. GHES / GHEC DR use install-app-ghes.yml
+    if: github.server_url == 'https://github.com'
     permissions:
       contents: read  # for actions/checkout to fetch code
     runs-on: ubuntu-latest

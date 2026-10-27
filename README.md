@@ -151,14 +151,14 @@ my-org-3
 
 Lines starting with `#` are treated as comments.
 
-### Run the Workflow
+### Run the Workflow for Your Platform
 
-The workflow runs automatically when:
-- `organizations.txt` is modified (push to main)
-- Daily at midnight UTC (scheduled)
+The workflow for your platform runs automatically when `organizations.txt` is modified (push).
 
 To run manually:
-1. Go to **Actions > Install GitHub App to Organizations**
+1. Go to **Actions** and select the workflow for your platform:
+    - [Public GitHub](https://github.com) use [install-app.yml](.github/workflows/install-app.yml)
+    - [GHES](https://docs.github.com/en/enterprise-server@3.19/admin/overview/about-github-enterprise-server) / [GHEC DR](https://docs.github.com/en/enterprise-cloud@latest/admin/data-residency/about-github-enterprise-cloud-with-data-residency) use [install-app-ghes.yml](.github/workflows/install-app-ghes.yml)
 2. Click **Run workflow**
 3. Optionally enable **Dry run** to check status without installing
 

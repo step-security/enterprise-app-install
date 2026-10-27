@@ -8,11 +8,17 @@ on:
         required: false
         default: false
         type: boolean
+  # Run when organizations.txt changes
+  push:
+    paths:
+      - 'organizations.txt'
 
 permissions: {}
 
 jobs:
   install-app:
+    # GHES / GHEC DR only. github.com uses install-app.yml
+    if: github.server_url != 'https://github.com'
     # IMPORTANT: must run inside the GHES / GHEC DR network to reach its API.
     # Use a self-hosted or instance-hosted runner.
     permissions:
