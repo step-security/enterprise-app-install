@@ -141,7 +141,9 @@ UPDATED=0
 FAILED=0
 
 while IFS= read -r ORG; do
-  ORG=$(echo "$ORG" | xargs)
+  # Strip CR (Windows line endings) and surrounding whitespace; either one
+  # ends up in the API URL and makes curl fail.
+  ORG=$(printf '%s' "$ORG" | tr -d '\r' | xargs)
   [ -z "$ORG" ] && continue
 
   echo ""
@@ -160,6 +162,12 @@ while IFS= read -r ORG; do
 
   if [ "$CHECK_HTTP_CODE" != "200" ]; then
     echo "WARNING: Failed to check installations for $ORG (HTTP $CHECK_HTTP_CODE): ${CHECK_BODY}"
+    if [ "$CHECK_HTTP_CODE" == "404" ]; then
+      echo "Organization '$ORG' not found in enterprise '${ENTERPRISE_SLUG}'. Check its name in organizations.txt"
+    fi
+    echo "Skipping $ORG"
+    FAILED=$((FAILED + 1))
+    continue
   fi
 
   for i in "${!APP_NAMES[@]}"; do
@@ -298,3 +306,7 @@ echo "Newly installed: $INSTALLED"
 echo "Already installed: $ALREADY_INSTALLED"
 echo "Permission updates accepted: $UPDATED"
 echo "Failed: $FAILED"
+
+if [ "$FAILED" -gt 0 ]; then
+  exit 1
+fi
