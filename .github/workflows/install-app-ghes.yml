@@ -48,4 +48,4 @@ jobs:
           command -v curl >/dev/null 2>&1 || { echo "curl is required on the runner"; exit 1; }
 
       - name: Install StepSecurity apps to organizations
-        run: bash install-app-local.sh
+        run: bash install-apps.sh
