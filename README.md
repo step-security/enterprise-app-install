@@ -136,6 +136,7 @@ Go to this repository's **Settings > Secrets and variables > Actions** (on the G
 | `INSTALLER_APP_CLIENT_ID` | The installer app Client ID |
 | `REGULAR_APP_CLIENT_ID` | Regular app Client ID (as registered on this instance) |
 | `ADVANCED_APP_CLIENT_ID` | Advanced app Client ID (as registered on this instance) |
+| `APP_OWNER` | **GHEC DR only:** the org that registered the target apps (the `OWNER` in the app's public link `https://SUBDOMAIN.ghe.com/apps/OWNER/SLUG`). Leave unset on GHES. |
 
 ## Usage
 

@@ -34,6 +34,8 @@ jobs:
       # Target StepSecurity apps, as registered on THIS GHES / GHEC DR instance
       REGULAR_APP_CLIENT_ID: ${{ vars.REGULAR_APP_CLIENT_ID }}
       ADVANCED_APP_CLIENT_ID: ${{ vars.ADVANCED_APP_CLIENT_ID }}
+      # GHEC DR only: org that registered the target apps
+      APP_OWNER: ${{ vars.APP_OWNER }}
       DRY_RUN: ${{ inputs.dry_run }}
     steps:
       - name: Checkout repository
@@ -46,4 +48,4 @@ jobs:
           command -v curl >/dev/null 2>&1 || { echo "curl is required on the runner"; exit 1; }
 
       - name: Install StepSecurity apps to organizations
-        run: bash install-app-local.sh
+        run: bash install-apps.sh

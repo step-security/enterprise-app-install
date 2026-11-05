@@ -16,6 +16,9 @@ fi
 : "${REGULAR_APP_CLIENT_ID:?set REGULAR_APP_CLIENT_ID (Actions Security app)}"
 : "${ADVANCED_APP_CLIENT_ID:?set ADVANCED_APP_CLIENT_ID (Advanced app)}"
 DRY_RUN="${DRY_RUN:-false}"
+# Org that owns (registered) the target apps. Required on GHEC with Data
+# Residency, where apps are looked up as /apps/{owner}/{slug}.
+APP_OWNER="${APP_OWNER:-}"
 
 # Installer app private key: inline PEM (CI secret) takes precedence over a file path (local).
 if [ -n "${INSTALLER_APP_PRIVATE_KEY:-}" ]; then
@@ -40,6 +43,14 @@ else
 fi
 
 echo "Using API base: ${API_BASE}"
+
+# GHEC with Data Residency (*.ghe.com) looks apps up as /apps/{owner}/{slug},
+# so APP_OWNER is required there.
+API_HOST="${API_BASE#*://}"; API_HOST="${API_HOST%%/*}"; API_HOST="${API_HOST%%:*}"
+if [[ "$API_HOST" == *.ghe.com ]] && [ -z "$APP_OWNER" ]; then
+  echo "GHEC with Data Residency detected (${API_BASE}): set APP_OWNER to the org that registered the target apps (OWNER in https://SUBDOMAIN.ghe.com/apps/OWNER/SLUG)" >&2
+  exit 1
+fi
 
 NOW=$(date +%s)
 IAT=$((NOW - 60))
@@ -130,7 +141,9 @@ UPDATED=0
 FAILED=0
 
 while IFS= read -r ORG; do
-  ORG=$(echo "$ORG" | xargs)
+  # Strip CR (Windows line endings) and surrounding whitespace; either one
+  # ends up in the API URL and makes curl fail.
+  ORG=$(printf '%s' "$ORG" | tr -d '\r' | xargs)
   [ -z "$ORG" ] && continue
 
   echo ""
@@ -148,7 +161,13 @@ while IFS= read -r ORG; do
   CHECK_BODY=$(echo "$CHECK_RESPONSE" | sed '$d')
 
   if [ "$CHECK_HTTP_CODE" != "200" ]; then
-    echo "WARNING: Failed to check installations for $ORG (HTTP $CHECK_HTTP_CODE)"
+    echo "WARNING: Failed to check installations for $ORG (HTTP $CHECK_HTTP_CODE): ${CHECK_BODY}"
+    if [ "$CHECK_HTTP_CODE" == "404" ]; then
+      echo "Organization '$ORG' not found in enterprise '${ENTERPRISE_SLUG}'. Check its name in organizations.txt"
+    fi
+    echo "Skipping $ORG"
+    FAILED=$((FAILED + 1))
+    continue
   fi
 
   for i in "${!APP_NAMES[@]}"; do
@@ -176,7 +195,7 @@ while IFS= read -r ORG; do
           -H "Authorization: Bearer ${ACCESS_TOKEN}" \
           -H "Accept: application/vnd.github+json" \
           -H "X-GitHub-Api-Version: 2022-11-28" \
-          "${API_BASE}/apps/${APP_SLUG}")
+          "${API_BASE}/apps/${APP_OWNER:+${APP_OWNER}/}${APP_SLUG}")
 
         APP_HTTP_CODE=$(echo "$APP_RESPONSE" | tail -n1)
         APP_BODY=$(echo "$APP_RESPONSE" | sed '$d')
@@ -202,7 +221,10 @@ while IFS= read -r ORG; do
               | "\(.key):\(.value)"]
             | join(", ")')
         else
-          echo "WARNING: Could not fetch app manifest for ${APP_SLUG} (HTTP $APP_HTTP_CODE)"
+          echo "WARNING: Could not fetch app manifest for ${APP_SLUG} (HTTP $APP_HTTP_CODE): ${APP_BODY}"
+          if [ "$APP_HTTP_CODE" == "404" ] && [ -n "$APP_OWNER" ]; then
+            echo "Please check that APP_OWNER ('${APP_OWNER}') is the org that owns the app (OWNER in https://SUBDOMAIN.ghe.com/apps/OWNER/${APP_SLUG}). On GHES, leave APP_OWNER unset."
+          fi
         fi
       else
         echo "WARNING: Installation for ${APP_CLIENT_ID} has no app_slug"
@@ -284,3 +306,7 @@ echo "Newly installed: $INSTALLED"
 echo "Already installed: $ALREADY_INSTALLED"
 echo "Permission updates accepted: $UPDATED"
 echo "Failed: $FAILED"
+
+if [ "$FAILED" -gt 0 ]; then
+  exit 1
+fi
